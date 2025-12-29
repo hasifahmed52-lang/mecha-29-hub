@@ -77,7 +77,7 @@ FOR DELETE
 TO authenticated
 USING (public.has_role(auth.uid(), 'admin'));
 
--- Create function to verify admin login
+-- Create function to verify admin login (CASE INSENSITIVE)
 CREATE OR REPLACE FUNCTION public.verify_admin_login(p_username TEXT, p_password TEXT)
 RETURNS BOOLEAN
 LANGUAGE plpgsql
@@ -89,7 +89,7 @@ DECLARE
 BEGIN
   SELECT password_hash INTO stored_hash
   FROM public.admin_users
-  WHERE username = p_username;
+  WHERE lower(username) = lower(p_username); -- Compare lowercase
   
   IF stored_hash IS NULL THEN
     RETURN FALSE;
@@ -102,9 +102,11 @@ $$;
 -- Enable pgcrypto for password hashing
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
--- Insert default admin user with hashed password
+-- Insert default admin user with hashed password (Username stored as 'Roman860')
+-- Password is: roman207
 INSERT INTO public.admin_users (username, password_hash)
-VALUES ('Roman860', crypt('roman207', gen_salt('bf')));
+VALUES ('Roman860', crypt('roman207', gen_salt('bf')))
+ON CONFLICT (username) DO NOTHING;
 
 -- Create function to assign admin role after login
 CREATE OR REPLACE FUNCTION public.assign_admin_role(p_user_id UUID, p_username TEXT)
@@ -114,10 +116,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM public.admin_users WHERE username = p_username) THEN
+  -- Verify the username is actually an admin before assigning role
+  IF EXISTS (SELECT 1 FROM public.admin_users WHERE lower(username) = lower(p_username)) THEN
     INSERT INTO public.user_roles (user_id, role)
     VALUES (p_user_id, 'admin')
     ON CONFLICT (user_id, role) DO NOTHING;
   END IF;
 END;
 $$;
+
