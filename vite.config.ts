@@ -14,8 +14,8 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // Build optimization (Load capacity barabe)
   build: {
+    // Optimizes the build for better performance with many users
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
@@ -27,4 +27,3 @@ export default defineConfig(({ mode }) => ({
     },
   },
 }));
-
