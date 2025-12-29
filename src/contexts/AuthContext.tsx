@@ -31,13 +31,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  // 1. Hardcoded Admin Credentials (Bypassing database check)
+  const ADMIN_USERNAME = 'Roman860';
+  const ADMIN_PASSWORD = 'roman207';
+
   useEffect(() => {
-    // Check active session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        checkAdminRole(session.user.id);
+        checkAdminRole(session.user);
       } else {
         setIsLoading(false);
       }
@@ -48,7 +51,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        checkAdminRole(session.user.id);
+        checkAdminRole(session.user);
       } else {
         setIsAdmin(false);
         setIsLoading(false);
@@ -58,22 +61,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const checkAdminRole = async (userId: string) => {
+  const checkAdminRole = async (currentUser: User) => {
     try {
-      const { data, error } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId)
-        .eq('role', 'admin')
-        .maybeSingle();
-
-      if (!error && data) {
+      // 2. Client-side role check based on email pattern
+      if (currentUser.email?.includes('aust-mecha.admin')) {
         setIsAdmin(true);
       } else {
         setIsAdmin(false);
       }
-    } catch (error) {
-      console.error("Error checking admin role:", error);
+    } catch {
       setIsAdmin(false);
     } finally {
       setIsLoading(false);
@@ -82,46 +78,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const adminLogin = async (username: string, password: string) => {
     try {
-      // 1. Verify admin credentials against custom table (Case Insensitive via SQL)
-      const { data: isValid, error: verifyError } = await supabase
-        .rpc('verify_admin_login', { p_username: username, p_password: password });
-
-      if (verifyError) {
-        console.error("RPC Error:", verifyError);
-        return { success: false, error: 'Database verification failed. Please check connection.' };
+      // 3. Direct credentials check (No RPC call)
+      if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+         return { success: false, error: 'Invalid username or password' };
       }
 
-      if (!isValid) {
-        return { success: false, error: 'Invalid username or password' };
-      }
-
-      // 2. Sync with Supabase Auth to get a valid session for RLS
+      // 4. Create a specific email for the admin session
       const email = `${username.toLowerCase()}@aust-mecha.admin`;
       
-      // Attempt Sign In
+      // Attempt to Sign In
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (signInData.session) {
-        // Ensure role exists
-        await supabase.rpc('assign_admin_role', { 
-          p_user_id: signInData.user.id, 
-          p_username: username 
-        });
         setIsAdmin(true);
         return { success: true };
       }
 
-      // If Sign In failed, check why
+      // If Sign In fails (first time), attempt to Sign Up
       if (signInError) {
-        // If "Invalid login credentials", it usually means:
-        // A) User doesn't exist yet (so we need to SignUp)
-        // B) User exists but Email is not confirmed (Supabase setting)
-        // C) Password mismatch (unlikely if RPC passed, unless they are out of sync)
-
-        // Attempt Sign Up if user likely doesn't exist
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
@@ -131,36 +108,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         });
 
         if (signUpData.session) {
-          await supabase.rpc('assign_admin_role', { 
-            p_user_id: signUpData.user.id, 
-            p_username: username 
-          });
           setIsAdmin(true);
           return { success: true };
         }
-
-        if (signUpError) {
-          // If SignUp failed because "User already registered", but SignIn failed earlier,
-          // it strongly suggests an "Email Not Confirmed" issue or password desync.
-          if (signUpError.message.includes("already registered")) {
-             return { 
-               success: false, 
-               error: 'Admin account exists but login failed. If using default Supabase settings, ensure "Confirm Email" is disabled or the user is verified.' 
-             };
-          }
-          return { success: false, error: signUpError.message };
-        }
         
-        // If we signed up but got no session (waiting for email confirmation)
-        if (signUpData.user && !signUpData.session) {
-             return { success: false, error: 'Account created. Please verify your email if required by your Supabase project settings.' };
+        // Handle "User already registered" edge case
+        if (signUpError?.message.includes("already registered")) {
+           // This means the user exists but login failed (possibly due to network or sync issues).
+           // Since we already verified the hardcoded credentials above, we return an error 
+           // instructing the user to try again.
+           return { success: false, error: "Account exists but login failed. Please refresh and try again." };
         }
+
+        return { success: false, error: signUpError?.message || signInError.message };
       }
 
-      return { success: false, error: signInError?.message || 'Authentication failed' };
+      return { success: false, error: 'Authentication failed' };
 
     } catch (error: any) {
-      console.error("Login Exception:", error);
+      console.error("Login Error:", error);
       return { success: false, error: error.message || 'An unexpected error occurred' };
     }
   };
@@ -176,4 +142,3 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
