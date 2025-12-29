@@ -53,14 +53,14 @@ const AdminLogin = () => {
       } else {
         toast({
           title: 'Login Failed',
-          description: result.error || 'Invalid credentials. Please try again.',
+          description: result.error || 'Invalid credentials.',
           variant: 'destructive',
         });
       }
     } catch (error) {
       toast({
-        title: 'Login Failed',
-        description: 'An unexpected error occurred. Please try again.',
+        title: 'Login Error',
+        description: 'An unexpected system error occurred.',
         variant: 'destructive',
       });
     } finally {
@@ -79,7 +79,6 @@ const AdminLogin = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-md">
-        {/* Back Link */}
         <Link
           to="/"
           className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors mb-8"
@@ -88,9 +87,7 @@ const AdminLogin = () => {
           Back to Registration
         </Link>
 
-        {/* Login Card */}
         <div className="bg-card rounded-xl shadow-card p-8 animate-slide-up">
-          {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-primary mb-4">
               <Shield className="w-7 h-7 text-primary-foreground" />
@@ -101,7 +98,6 @@ const AdminLogin = () => {
             </p>
           </div>
 
-          {/* Form */}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
               <FormField
@@ -112,7 +108,7 @@ const AdminLogin = () => {
                     <FormLabel>Username</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Enter your username"
+                        placeholder="Enter Username"
                         className="input-focus"
                         autoComplete="username"
                         {...field}
@@ -132,7 +128,7 @@ const AdminLogin = () => {
                     <FormControl>
                       <Input
                         type="password"
-                        placeholder="Enter your password"
+                        placeholder="Enter Password"
                         className="input-focus"
                         autoComplete="current-password"
                         {...field}
