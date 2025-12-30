@@ -66,6 +66,7 @@ export const adminLoginSchema = z.object({
   
   password: z
     .string()
+    .trim()
     .min(1, "Password is required")
     .max(100, "Password must be less than 100 characters"),
 });

@@ -92,22 +92,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
 
-      // 1) Verify credentials against the database (no hardcoded secrets)
-      const { data: valid, error: verifyError } = await supabase.rpc("verify_admin_login", {
-        p_username: username,
-        p_password: password,
-      });
+      // 1) Verify credentials on the server (bcrypt compare)
+      const { data: verifyData, error: verifyError } = await supabase.functions.invoke(
+        "verify-admin-login",
+        {
+          body: {
+            username,
+            password,
+          },
+        }
+      );
 
       if (verifyError) throw verifyError;
+      const valid = Boolean((verifyData as any)?.valid);
       if (!valid) return { success: false, error: "Invalid username or password" };
 
       const email = adminEmailForUsername(username);
       const redirectUrl = `${window.location.origin}/#/admin/dashboard`;
+      const normalizedPassword = password.replace(/\s+/g, "");
 
       // 2) Ensure the admin has an authenticated session (sign-in or sign-up)
       const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
-        password,
+        password: normalizedPassword,
       });
 
       let nextUser: User | null = signInData.session?.user ?? null;
@@ -115,7 +122,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (!nextUser) {
         const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
           email,
-          password,
+          password: normalizedPassword,
           options: {
             emailRedirectTo: redirectUrl,
             data: { username },
@@ -127,7 +134,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           if (signUpError.message?.toLowerCase().includes("already")) {
             const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
               email,
-              password,
+              password: normalizedPassword,
             });
             if (retryError) return { success: false, error: retryError.message };
             nextUser = retryData.session?.user ?? null;
