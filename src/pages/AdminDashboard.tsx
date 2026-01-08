@@ -43,8 +43,40 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (isAdmin) {
       fetchRegistrations();
+
+      // Subscribe to realtime changes
+      const channel = supabase
+        .channel('registrations-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'registrations',
+          },
+          (payload) => {
+            if (payload.eventType === 'INSERT') {
+              setRegistrations((prev) => [payload.new as Registration, ...prev]);
+              toast({
+                title: 'New Registration',
+                description: `${(payload.new as Registration).full_name} just registered!`,
+              });
+            } else if (payload.eventType === 'DELETE') {
+              setRegistrations((prev) => prev.filter((r) => r.id !== payload.old.id));
+            } else if (payload.eventType === 'UPDATE') {
+              setRegistrations((prev) =>
+                prev.map((r) => (r.id === payload.new.id ? (payload.new as Registration) : r))
+              );
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
-  }, [isAdmin]);
+  }, [isAdmin, toast]);
 
   const fetchRegistrations = async () => {
     try {
